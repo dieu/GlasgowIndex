@@ -1,19 +1,8 @@
+#!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
-const vm = require('vm');
 
-function loadScript(file) {
-  const code = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
-  const context = { console };
-  vm.createContext(context);
-  vm.runInContext(code, context);
-  return context;
-}
-
-const edfCtx = loadScript('EDFFile.js');
-const flowCtx = loadScript('FlowLimits.js');
-
-const parseEDFFile = edfCtx.parseEDFFile;
+const { parseEDFFile } = require('../EDFFile');
 const {
   formDataArray,
   findMins,
@@ -21,10 +10,20 @@ const {
   calcCycleBasedIndicators,
   inspirationAmplitude,
   prepIndices,
-} = flowCtx;
+} = require('../FlowLimits');
 
-function processFile(filePath) {
-  const buf = fs.readFileSync(filePath);
+async function readFileBuffer(filePath, attempts = 3) {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fs.promises.readFile(filePath);
+    } catch (err) {
+      if (i === attempts - 1) throw err;
+    }
+  }
+}
+
+async function processFile(filePath) {
+  const buf = await readFileBuffer(filePath);
   const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
   const fileData = parseEDFFile(ab);
   const dataArray = formDataArray(fileData);
@@ -80,17 +79,27 @@ function printTable(rows) {
   }
 }
 
-function main() {
+async function main() {
   const baseDir = process.argv[2] || path.join(__dirname, '..', 'DATALOG');
   const files = findEdfFiles(baseDir);
   if (files.length === 0) {
     console.log('No EDF files found in', baseDir);
     return;
   }
-  const rows = files.map(processFile);
+  const rows = [];
+  for (const file of files) {
+    try {
+      rows.push(await processFile(file));
+    } catch (err) {
+      console.error('Failed to process', file, '-', err.message);
+    }
+  }
   printTable(rows);
 }
 
 if (require.main === module) {
-  main();
+  main().catch(err => {
+    console.error(err);
+    process.exit(1);
+  });
 }

@@ -11,3 +11,11 @@ breathing indices:
 ```bash
 node cli/processDatalog.js /path/to/DATALOG
 ```
+
+Example output:
+
+```
+date          overall    skew    flatTop    spike    topHeavy    multiPeak    noPause    inspirRate    multiBreath    ampVar
+----------  ---------  ------  ---------  -------  ----------  -----------  ---------  ------------  -------------  --------
+2025-06-10  0.23       0.10    0.05       0.00     0.02        0.03         0.01       12            0.00           0.02
+```

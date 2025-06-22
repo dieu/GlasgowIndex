@@ -105,6 +105,11 @@ function parseSignalHeader(fileArray, fileData){
     return fileData;
 }
 
+// allow Node.js require
+if (typeof module !== 'undefined') {
+  module.exports = { parseEDFFile };
+}
+
 function parseSignals(fileArray, fileData){
 	for(const nextSignal of fileData.signals){
 		nextSignal.digitalValues = [];

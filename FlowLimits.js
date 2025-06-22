@@ -938,5 +938,17 @@ function formatChartDate(inDate){
 			twoCharLeadingZero( inDate.getHours() ) + ":" +
 			twoCharLeadingZero( inDate.getMinutes() ) + ":" + 
 			twoCharLeadingZero( inDate.getSeconds() ) + "." +
-			threeCharLeadingZero( inDate.getMilliseconds() );	
+                        threeCharLeadingZero( inDate.getMilliseconds() );
+}
+
+// allow Node.js require
+if (typeof module !== 'undefined') {
+  module.exports = {
+    formDataArray,
+    findMins,
+    findInspirations,
+    calcCycleBasedIndicators,
+    inspirationAmplitude,
+    prepIndices,
+  };
 }
