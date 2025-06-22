@@ -61,6 +61,20 @@ function findEdfFiles(dir) {
   return out;
 }
 
+function extractDateFromPath(filePath) {
+  const base = path.basename(filePath).toLowerCase();
+  const match = base.match(/(\d{8})_(\d{6})_brp\.edf$/);
+  if (!match) return new Date(0);
+  const [_, d, t] = match;
+  const year = Number(d.slice(0, 4));
+  const month = Number(d.slice(4, 6)) - 1;
+  const day = Number(d.slice(6, 8));
+  const hour = Number(t.slice(0, 2));
+  const min = Number(t.slice(2, 4));
+  const sec = Number(t.slice(4, 6));
+  return new Date(Date.UTC(year, month, day, hour, min, sec));
+}
+
 
 function printHeader(headers, colWidths) {
   const headerRow = headers.map((h, i) => h.padEnd(colWidths[i])).join('  ');
@@ -79,6 +93,8 @@ function printRow(row, headers, colWidths) {
 async function main() {
   const baseDir = process.argv[2] || path.join(__dirname, '..', 'DATALOG');
   const files = findEdfFiles(baseDir);
+  // sort by date descending so newer files are processed first
+  files.sort((a, b) => extractDateFromPath(b) - extractDateFromPath(a));
   if (files.length === 0) {
     console.log('No EDF files found in', baseDir);
     return;

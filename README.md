@@ -5,8 +5,8 @@ This repository includes a script for summarising EDF files in a `DATALOG` direc
 ## Usage
 
 Run the CLI passing the path to your `DATALOG` directory. The script searches
-recursively for `*_BRP.edf` files. As each file is processed a row is printed
-showing its breathing indices:
+recursively for `*_BRP.edf` files. Files are processed from newest to oldest and
+a row is printed as soon as each file finishes:
 
 ```bash
 node cli/processDatalog.js /path/to/DATALOG
