@@ -40,8 +40,10 @@ async function processFile(filePath) {
   calcCycleBasedIndicators(dataArray, results);
   inspirationAmplitude(dataArray, results);
   const indices = prepIndices(results);
-  const date = fileData.startDateTime.toISOString().slice(0, 10);
-  return { date, ...indices };
+  const dt = extractDateFromPath(filePath);
+  const date = dt.toISOString().slice(0, 10);
+  const time = dt.toISOString().slice(11, 19);
+  return { date, time, ...indices };
 }
 
 function findEdfFiles(dir) {
@@ -102,6 +104,7 @@ async function main() {
 
   const headers = [
     'date',
+    'time',
     'overall',
     'skew',
     'flatTop',
