@@ -43,8 +43,14 @@ function findEdfFiles(dir) {
   const out = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...findEdfFiles(p));
-    else if (entry.isFile() && entry.name.toLowerCase().endsWith('.edf')) out.push(p);
+    if (entry.isDirectory()) {
+      out.push(...findEdfFiles(p));
+    } else if (
+      entry.isFile() &&
+      entry.name.toLowerCase().endsWith('_brp.edf')
+    ) {
+      out.push(p);
+    }
   }
   return out;
 }
@@ -75,7 +81,7 @@ function printTable(rows) {
 }
 
 function main() {
-  const baseDir = path.join(__dirname, '..', 'DATALOG');
+  const baseDir = process.argv[2] || path.join(__dirname, '..', 'DATALOG');
   const files = findEdfFiles(baseDir);
   if (files.length === 0) {
     console.log('No EDF files found in', baseDir);

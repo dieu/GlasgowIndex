@@ -4,12 +4,10 @@ This repository includes a script for summarising EDF files in a `DATALOG` direc
 
 ## Usage
 
-Place your EDF files under a folder named `DATALOG` at the project root. Files can be
-inside subfolders. Run the CLI with Node:
+Run the CLI passing the path to your `DATALOG` directory. The script will search
+recursively for `*_BRP.edf` files, analyse each one and print a table of
+breathing indices:
 
 ```bash
-node cli/processDatalog.js
+node cli/processDatalog.js /path/to/DATALOG
 ```
-
-The script searches recursively for `*.edf` files, analyses each file and prints a
-table containing breathing indices for every recording.
