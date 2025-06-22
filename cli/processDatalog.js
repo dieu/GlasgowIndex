@@ -61,7 +61,29 @@ function findEdfFiles(dir) {
   return out;
 }
 
-function printTable(rows) {
+
+function printHeader(headers, colWidths) {
+  const headerRow = headers.map((h, i) => h.padEnd(colWidths[i])).join('  ');
+  const sep = headers.map((h, i) => '-'.repeat(colWidths[i])).join('  ');
+  console.log(headerRow);
+  console.log(sep);
+}
+
+function printRow(row, headers, colWidths) {
+  const line = headers
+    .map((h, i) => String(row[h]).padEnd(colWidths[i]))
+    .join('  ');
+  console.log(line);
+}
+
+async function main() {
+  const baseDir = process.argv[2] || path.join(__dirname, '..', 'DATALOG');
+  const files = findEdfFiles(baseDir);
+  if (files.length === 0) {
+    console.log('No EDF files found in', baseDir);
+    return;
+  }
+
   const headers = [
     'date',
     'overall',
@@ -75,33 +97,17 @@ function printTable(rows) {
     'multiBreath',
     'ampVar',
   ];
-  const colWidths = headers.map(h => Math.max(h.length, ...rows.map(r => String(r[h]).length)));
-  const sep = headers.map((h, i) => '-'.repeat(colWidths[i])).join('  ');
-  const headerRow = headers.map((h, i) => h.padEnd(colWidths[i])).join('  ');
-  console.log(headerRow);
-  console.log(sep);
-  for (const row of rows) {
-    const line = headers.map((h, i) => String(row[h]).padEnd(colWidths[i])).join('  ');
-    console.log(line);
-  }
-}
+  const colWidths = headers.map(h => h.length);
+  printHeader(headers, colWidths);
 
-async function main() {
-  const baseDir = process.argv[2] || path.join(__dirname, '..', 'DATALOG');
-  const files = findEdfFiles(baseDir);
-  if (files.length === 0) {
-    console.log('No EDF files found in', baseDir);
-    return;
-  }
-  const rows = [];
   for (const file of files) {
     try {
-      rows.push(await processFile(file));
+      const row = await processFile(file);
+      printRow(row, headers, colWidths);
     } catch (err) {
       console.error('Failed to process', file, '-', err.message);
     }
   }
-  printTable(rows);
 }
 
 if (require.main === module) {
