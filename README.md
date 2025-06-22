@@ -12,6 +12,8 @@ breathing indices:
 node cli/processDatalog.js /path/to/DATALOG
 ```
 
+If a file cannot be parsed it will be skipped and an error reported.
+
 Example output:
 
 ```

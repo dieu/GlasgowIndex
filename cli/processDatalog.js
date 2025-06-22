@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+'use strict';
 const fs = require('fs');
 const path = require('path');
 
@@ -26,7 +27,13 @@ async function processFile(filePath) {
   const buf = await readFileBuffer(filePath);
   const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
   const fileData = parseEDFFile(ab);
+  if (!fileData.signals || fileData.signals.length === 0) {
+    throw new Error('Invalid or empty EDF file');
+  }
   const dataArray = formDataArray(fileData);
+  if (!Array.isArray(dataArray) || dataArray.length === 0) {
+    throw new Error('No flow data found');
+  }
   findMins(dataArray);
   const results = {};
   findInspirations(dataArray, results);
