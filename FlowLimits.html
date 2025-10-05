@@ -17,7 +17,7 @@
 		<span style="padding-left:100px;">For Sleep Disordered Breathing / Flow Limitations</span>
 		<span style="padding-left:100px;">(See <a href="Intro.html">introduction</a>)</span>
 	</div>
-	<p>Select file (Resmed "*DATE*_*TIME*_BRP.edf"): <input type="file" name="inputfile" id="fileInput" style="padding-left:40px;"></p>
+        <p>Select folder or files containing Resmed "*DATE*_*TIME*_BRP.edf": <input type="file" name="inputfile" id="fileInput" multiple webkitdirectory directory style="padding-left:40px;"></p>
 	<div>
   		<canvas id="chartTop"></canvas>
 	</div>
@@ -49,16 +49,7 @@ document.getElementById('fwdBtn').addEventListener('click', function (event) {
 });
 
 document.getElementById('fileInput').addEventListener('change', function (event) {
-	let file = event.target.files[0];
-    let reader = new FileReader();
-	
-   	reader.onload = function (event) {
-        	let arrayBuffer = event.target.result;
-        	dataArray=null;
-        	results = {};
-        	acceptFile(arrayBuffer);
-	}
-	reader.readAsArrayBuffer(file);    
+        queueEDFFileProcessing(event.target.files);
     }
 );
 

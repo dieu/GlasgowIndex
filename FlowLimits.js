@@ -21,7 +21,38 @@ const BLACK_COLOUR = "#000000";
 const MIN_WINDOW = 25;
 const GREY_ZONE_LOWER = -10;
 
-// Look for maximum negative (expiration) flow 
+function readFileAsArrayBuffer(file) {
+        return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (event) => resolve(event.target.result);
+                reader.onerror = () => reject(reader.error);
+                reader.readAsArrayBuffer(file);
+        });
+}
+
+async function queueEDFFileProcessing(fileList) {
+        if (!fileList || fileList.length === 0) {
+                return;
+        }
+
+        const edfFiles = Array.from(fileList).filter((file) => /_BRP\.edf$/i.test(file.name));
+
+        if (edfFiles.length === 0) {
+                alert('No files matching "*_BRP.edf" were found in the selected input.');
+                return;
+        }
+
+        for (const file of edfFiles) {
+                try {
+                        const arrayBuffer = await readFileAsArrayBuffer(file);
+                        acceptFile(arrayBuffer);
+                } catch (error) {
+                        console.error('Error reading file', file.name, error);
+                }
+        }
+}
+
+// Look for maximum negative (expiration) flow
 function findMins(dataArray){
 	for (let ptr = 0; ptr < (MIN_WINDOW) ; ptr++){
 // ignore first MIN_WINDOW samples (1 seconds worth)
