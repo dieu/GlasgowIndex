@@ -18,6 +18,7 @@
 		<span style="padding-left:100px;">(See <a href="Intro.html">introduction</a>)</span>
 	</div>
         <p>Select folder or files containing Resmed "*DATE*_*TIME*_BRP.edf": <input type="file" name="inputfile" id="fileInput" multiple webkitdirectory directory style="padding-left:40px;"></p>
+        <p>Sessions:<select id="sessionSelect" style="margin-left:40px;"></select></p>
 	<div>
   		<canvas id="chartTop"></canvas>
 	</div>
@@ -35,59 +36,119 @@
 let chartTop = null;
 let chartDetail = null;
 
-let fileHdrData = {};
-let startDateTime = null;
-let dataArray = null;
-let results = {};
 let detailSampleSelected = 0;
 
-document.getElementById('backBtn').addEventListener('click', function (event) {
-	showDetailBack();
+const sessions = [];
+let activeSessionIndex = -1;
+const sessionSelect = document.getElementById('sessionSelect');
+sessionSelect.disabled = true;
+
+document.getElementById('backBtn').addEventListener('click', function () {
+        const session = getActiveSession();
+        if (!session){
+                return;
+        }
+        showDetailBack(session.dataArray, session.results);
 });
-document.getElementById('fwdBtn').addEventListener('click', function (event) {
-	showDetailForward();
+document.getElementById('fwdBtn').addEventListener('click', function () {
+        const session = getActiveSession();
+        if (!session){
+                return;
+        }
+        showDetailForward(session.dataArray, session.results);
 });
 
-document.getElementById('fileInput').addEventListener('change', function (event) {
-        queueEDFFileProcessing(event.target.files);
+sessionSelect.addEventListener('change', function (event) {
+        const index = parseInt(event.target.value, 10);
+        if (Number.isNaN(index)){
+                return;
+        }
+        setActiveSession(index);
+});
+
+document.getElementById('fileInput').addEventListener('change', async function (event) {
+        resetSessions();
+        await queueEDFFileProcessing(event.target.files);
+        if (sessions.length > 0){
+                setActiveSession(0);
+        }
     }
 );
 
 function acceptFile(arrayBuffer){
-	// read in file using EDF ("European Data Format" for sleep data) parser 
-	let fileData = parseEDFFile(arrayBuffer);
-	if (fileData.formatVersion!=="0"){
-		alert("File specified in incorrect format");
-		return;
-	}
-	
-	startDateTime = new Date(fileData.startDateTime.getTime());
-	
-	// extract data from parsed file
-	dataArray = formDataArray(fileData);
+        // read in file using EDF ("European Data Format" for sleep data) parser
+        let fileData = parseEDFFile(arrayBuffer);
+        if (fileData.formatVersion!=="0"){
+                alert("File specified in incorrect format");
+                return null;
+        }
 
-	fileHdrData.startDate = fileData.startDate;
-	fileHdrData.startTime = fileData.startTime;
-	fileHdrData.dataRecCnt = fileData.dataRecCnt;
-	fileHdrData.dataRecDuration = fileData.dataDuration;
+        const session = {
+                startDateTime: new Date(fileData.startDateTime.getTime()),
+                dataArray: formDataArray(fileData),
+                results: {}
+        };
+        const { dataArray, results } = session;
 
-	// find peak flow rate expirations (maximum negative flow)
-   	findMins(dataArray);
-	// find and examine inspirations
-   	findInspirations(dataArray, results);
-	// compare the relationship between expirations and inspiration
-   	calcCycleBasedIndicators(dataArray, results);
-	// prepare an idealised flow for display (not used in calcs)
-   	prepIdealFlow(dataArray, results);
-	// determine variance of amplitude (inspiration max flow) 
-	inspirationAmplitude(dataArray, results);
-	// prepare indices
-	results.cumIndex = prepIndices(results);
-	// compare inspiration & expiration volume looking for where they are not balanced
-	flowBalance();
-	// display the heat map
-	displayHeatMap(results);
-}   
+        // find peak flow rate expirations (maximum negative flow)
+        findMins(dataArray);
+        // find and examine inspirations
+        findInspirations(dataArray, results);
+        // compare the relationship between expirations and inspiration
+        calcCycleBasedIndicators(dataArray, results);
+        // prepare an idealised flow for display (not used in calcs)
+        prepIdealFlow(dataArray, results);
+        // determine variance of amplitude (inspiration max flow)
+        inspirationAmplitude(dataArray, results);
+        // prepare the indices
+        results.cumIndex = prepIndices(results);
+        // compare inspiration & expiration volume looking for where they are not balanced
+        flowBalance(dataArray, results);
+
+        return session;
+}
+
+function handleSessionCreated(session){
+        const sessionIndex = sessions.length;
+        sessions.push(session);
+
+        const option = document.createElement('option');
+        option.value = String(sessionIndex);
+        option.text = session.startDateTime.toLocaleString();
+        sessionSelect.appendChild(option);
+        sessionSelect.disabled = false;
+}
+
+function setActiveSession(index){
+        if (index < 0 || index >= sessions.length){
+                return;
+        }
+        activeSessionIndex = index;
+        sessionSelect.value = String(index);
+        detailSampleSelected = 0;
+        clearDetailGraph();
+        displayHeatMap(sessions[index]);
+}
+
+function getActiveSession(){
+        if (activeSessionIndex < 0 || activeSessionIndex >= sessions.length){
+                return null;
+        }
+        return sessions[activeSessionIndex];
+}
+
+function resetSessions(){
+        sessions.length = 0;
+        activeSessionIndex = -1;
+        detailSampleSelected = 0;
+        sessionSelect.innerHTML = "";
+        sessionSelect.disabled = true;
+        sessionSelect.value = "";
+        clearDetailGraph();
+        const topCanvas = document.getElementById('chartTop');
+        const ctx = topCanvas.getContext('2d');
+        ctx.clearRect(0, 0, topCanvas.width, topCanvas.height);
+}
 </script>
 
 </body>
