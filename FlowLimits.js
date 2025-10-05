@@ -45,7 +45,10 @@ async function queueEDFFileProcessing(fileList) {
         for (const file of edfFiles) {
                 try {
                         const arrayBuffer = await readFileAsArrayBuffer(file);
-                        acceptFile(arrayBuffer);
+                        const session = acceptFile(arrayBuffer);
+                        if (session && typeof handleSessionCreated === 'function') {
+                                handleSessionCreated(session);
+                        }
                 } catch (error) {
                         console.error('Error reading file', file.name, error);
                 }
@@ -512,9 +515,9 @@ function prepIndices(results){
 
 // Balance the inspiration and expiration flow. Flag where the two are not balanced with black lines in the overall flow.
 // Would be an indication of aerophagia. 
-function flowBalance(){
-	let flowZones = []; //
-	for(let i = 0; i < results.inspirations.length - 2 ; i++) {
+function flowBalance(dataArray, results){
+        let flowZones = []; //
+        for(let i = 0; i < results.inspirations.length - 2 ; i++) {
 		// look at each expiration in turn. Form a "zone" (one inspiration start to the next)
 		let nextZone = {upper: 0, lower:0};
 		nextZone.start = results.inspirations[i].start;
@@ -559,21 +562,23 @@ function flowBalance(){
 }
 
 // Display the heat map on the web page
-function displayHeatMap(results){	
-	chartTop = document.getElementById("chartTop");
-	chartTop.width = window.innerWidth;
+function displayHeatMap(session){
+        const { dataArray, results, startDateTime } = session;
 
-	chartTop.height = 350;
-	var ctx = chartTop.getContext("2d");
-	
+        chartTop = document.getElementById("chartTop");
+        chartTop.width = window.innerWidth;
+
+        chartTop.height = 350;
+        var ctx = chartTop.getContext("2d");
+
 // output texts on the canvas
-	ctx.font = "bold 14px sans-serif" ;
-	ctx.fillText(startDateTime.getDate() + " " +
-				 startDateTime.toLocaleString('default', { month: 'short' }) + " " +
-				 startDateTime.getFullYear(), 10, 20);
-	
-	ctx.font = "14px sans-serif" ;
-	ctx.fillText("Skew (" + results.cumIndex.skew + ")", 10, 50);
+        ctx.font = "bold 14px sans-serif" ;
+        ctx.fillText(startDateTime.getDate() + " " +
+                                 startDateTime.toLocaleString('default', { month: 'short' }) + " " +
+                                 startDateTime.getFullYear(), 10, 20);
+
+        ctx.font = "14px sans-serif" ;
+        ctx.fillText("Skew (" + results.cumIndex.skew + ")", 10, 50);
 	ctx.fillText("Spike (" + results.cumIndex.spike + ")", 10, 80);
 	ctx.fillText("Flat Top (" + results.cumIndex.flatTop + ")", 10, 110);
 	ctx.fillText("Top Heavy (" + results.cumIndex.topHeavy + ")", 10, 140);
@@ -659,7 +664,7 @@ function displayHeatMap(results){
 	}
 
 	// output the flow balance anomalys
-	outputFlowAnomaly(ctx, left, perCell, 310);
+        outputFlowAnomaly(ctx, left, perCell, 310, results.flowImbalance);
 	
 	var elemLeft = chartTop.offsetLeft + chartTop.clientLeft;
 	var elemTop = chartTop.offsetTop + chartTop.clientTop;
@@ -670,18 +675,18 @@ function displayHeatMap(results){
 	}
 	
 	//Add event listener for `click` events.
-	chartTop.addEventListener('click', function(event) {
-	    var x = event.pageX - elemLeft;  //      y = event.pageY - elemTop;
-		if (x < left || x > right){
-			// only process clicks within the coloured "cell" area
-			return;
-		}
-	    
-		// determine how far left/right was clicked and display the flow graph of the appropraite time 
-	    var instanceIndex = Math.trunc( ( (x - left) / noCells ) * results.inspirations.length);
-	    showDetailOneMinute(dataArray, results, results.inspirations[instanceIndex].start);
-	}, false);
-	
+        chartTop.onclick = function(event) {
+            var x = event.pageX - elemLeft;  //      y = event.pageY - elemTop;
+                if (x < left || x > right){
+                        // only process clicks within the coloured "cell" area
+                        return;
+                }
+
+                // determine how far left/right was clicked and display the flow graph of the appropraite time
+            var instanceIndex = Math.trunc( ( (x - left) / noCells ) * results.inspirations.length);
+            showDetailOneMinute(dataArray, results, results.inspirations[instanceIndex].start);
+        };
+
 }
 
 // Output the hours texts at the top of the canvas 
@@ -714,21 +719,21 @@ function outputHoursText(ctx, startDateTime, sampleCnt, pixelHeight, leftPx, rig
 }
 
 // output the flow anomaly markings
-function outputFlowAnomaly(ctx, leftPx, smplPerCell, heightPx){
+function outputFlowAnomaly(ctx, leftPx, smplPerCell, heightPx, flowImbalance){
 
-	ctx.lineWidth = 3;
-	for(let i = 0; i< results.flowImbalance.length; i++){
-		// put a black line in the overview heat map where the flow in and out were not balanced
-		let linePx = leftPx + Math.round(results.flowImbalance[i].inspirPtr / smplPerCell) - 1;
-		
-		ctx.beginPath();
-		ctx.moveTo(linePx, heightPx);
-		ctx.lineTo(linePx, (heightPx+30) );
-		ctx.strokeStyle = BLACK_COLOUR;
-		ctx.closePath();
-		ctx.stroke();
-	}
-	
+        ctx.lineWidth = 3;
+        for(let i = 0; i< flowImbalance.length; i++){
+                // put a black line in the overview heat map where the flow in and out were not balanced
+                let linePx = leftPx + Math.round(flowImbalance[i].inspirPtr / smplPerCell) - 1;
+
+                ctx.beginPath();
+                ctx.moveTo(linePx, heightPx);
+                ctx.lineTo(linePx, (heightPx+30) );
+                ctx.strokeStyle = BLACK_COLOUR;
+                ctx.closePath();
+                ctx.stroke();
+        }
+
 }
 
 // output a cell's index lines
@@ -870,34 +875,34 @@ function clearDetailGraph(){
 
 const DETAIL_SAMPLES_MOVE = 1125;
 
-function showDetailBack(){
-// show the data about 45 seconds before that currently selected 
-	if (chartDetail == null){
-		console.log("No detail being displayed. Cannot move back.")
-		return;
-	}	
-	
-	let refreshSampleSelected = detailSampleSelected - DETAIL_SAMPLES_MOVE;
-	if (refreshSampleSelected < 0){
-		refreshSampleSelected = 0;
-	}
-	
-	showDetailOneMinute(dataArray, results, refreshSampleSelected);
+function showDetailBack(dataArray, results){
+// show the data about 45 seconds before that currently selected
+        if (chartDetail == null){
+                console.log("No detail being displayed. Cannot move back.")
+                return;
+        }
+
+        let refreshSampleSelected = detailSampleSelected - DETAIL_SAMPLES_MOVE;
+        if (refreshSampleSelected < 0){
+                refreshSampleSelected = 0;
+        }
+
+        showDetailOneMinute(dataArray, results, refreshSampleSelected);
 }
 
-function showDetailForward(){
-	// show the data about 45 seconds after that currently selected
-	if (chartDetail == null){
-		console.log("No detail being displayed. Cannot move forward.")
-		return;
-	}
+function showDetailForward(dataArray, results){
+        // show the data about 45 seconds after that currently selected
+        if (chartDetail == null){
+                console.log("No detail being displayed. Cannot move forward.")
+                return;
+        }
 
-	let refreshSampleSelected = detailSampleSelected + DETAIL_SAMPLES_MOVE;
-	if (refreshSampleSelected > dataArray.length - (DETAIL_SAMPLES_SHOW/2) ){
-		refreshSampleSelected = dataArray.length - (DETAIL_SAMPLES_SHOW/2);
-	}
-	
-	showDetailOneMinute(dataArray, results, refreshSampleSelected);
+        let refreshSampleSelected = detailSampleSelected + DETAIL_SAMPLES_MOVE;
+        if (refreshSampleSelected > dataArray.length - (DETAIL_SAMPLES_SHOW/2) ){
+                refreshSampleSelected = dataArray.length - (DETAIL_SAMPLES_SHOW/2);
+        }
+
+        showDetailOneMinute(dataArray, results, refreshSampleSelected);
 }
 
 
@@ -912,20 +917,19 @@ function downloadJSON(jsObj, fileName){
 
 // Take the input EDF data and form the data for further processing and display 
 function formDataArray(fileData){
-	dataArray = [];
-	startDateTime = new Date(fileData.startDateTime.getTime());
+        let dataArray = [];
     for (const nextSignal of fileData.signals) {
-		if (!nextSignal.label.includes("Flow")){
-			continue;				
-		}
-		let nextSampleDateTime = fileData.startDateTime;
-		for (const nextValue of nextSignal.physicalValues){
-			 
-			 dataArray.push({x:formatChartDate(nextSampleDateTime), y: nextValue * 1});
-			 
-			 nextSampleDateTime = new Date(nextSampleDateTime.getTime() + nextSignal.sampleIntervalmS);
-		 }
-	}
+                if (!nextSignal.label.includes("Flow")){
+                        continue;
+                }
+                let nextSampleDateTime = new Date(fileData.startDateTime.getTime());
+                for (const nextValue of nextSignal.physicalValues){
+
+                         dataArray.push({x:formatChartDate(nextSampleDateTime), y: nextValue * 1});
+
+                         nextSampleDateTime = new Date(nextSampleDateTime.getTime() + nextSignal.sampleIntervalmS);
+                 }
+        }
     return dataArray;
 }
 
