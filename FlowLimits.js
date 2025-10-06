@@ -563,13 +563,29 @@ function flowBalance(dataArray, results){
 
 // Display the heat map on the web page
 function displayHeatMap(session){
+        const canvas = document.getElementById("chartTop");
+        if (!canvas){
+                return;
+        }
+        renderSessionOverview(canvas, session);
+}
+
+function renderSessionOverview(canvas, session, options = {}){
+        if (!canvas || !session){
+                return;
+        }
+
         const { dataArray, results, startDateTime } = session;
+        const ctx = canvas.getContext("2d");
+        if (!ctx){
+                return;
+        }
 
-        chartTop = document.getElementById("chartTop");
-        chartTop.width = window.innerWidth;
-
-        chartTop.height = 350;
-        var ctx = chartTop.getContext("2d");
+        const parentWidth = canvas.parentElement ? canvas.parentElement.clientWidth : 0;
+        const computedWidth = parentWidth > 0 ? parentWidth : window.innerWidth || 600;
+        canvas.width = computedWidth;
+        canvas.height = 350;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
 // output texts on the canvas
         ctx.font = "bold 14px sans-serif" ;
@@ -579,111 +595,123 @@ function displayHeatMap(session){
 
         ctx.font = "14px sans-serif" ;
         ctx.fillText("Skew (" + results.cumIndex.skew + ")", 10, 50);
-	ctx.fillText("Spike (" + results.cumIndex.spike + ")", 10, 80);
-	ctx.fillText("Flat Top (" + results.cumIndex.flatTop + ")", 10, 110);
-	ctx.fillText("Top Heavy (" + results.cumIndex.topHeavy + ")", 10, 140);
-	ctx.fillText("Double Peak (" + results.cumIndex.multiPeak + ")", 10, 170);
-	ctx.fillText("No Pause (" + results.cumIndex.noPause + ")", 10, 200);
-	ctx.fillText("Inspir Rate (" + results.cumIndex.inspirRate + ")", 10, 230);
-	ctx.fillText("Double Insp (" + results.cumIndex.multiBreath + ")", 10, 260);
-	ctx.fillText("Variable Amp (" + results.cumIndex.ampVar + ")", 10, 290);
-	ctx.font = "bold 14px sans-serif" ;
-	ctx.fillText("Overall (" + results.cumIndex.overall + ")", 10, 330);
-	
+        ctx.fillText("Spike (" + results.cumIndex.spike + ")", 10, 80);
+        ctx.fillText("Flat Top (" + results.cumIndex.flatTop + ")", 10, 110);
+        ctx.fillText("Top Heavy (" + results.cumIndex.topHeavy + ")", 10, 140);
+        ctx.fillText("Double Peak (" + results.cumIndex.multiPeak + ")", 10, 170);
+        ctx.fillText("No Pause (" + results.cumIndex.noPause + ")", 10, 200);
+        ctx.fillText("Inspir Rate (" + results.cumIndex.inspirRate + ")", 10, 230);
+        ctx.fillText("Double Insp (" + results.cumIndex.multiBreath + ")", 10, 260);
+        ctx.fillText("Variable Amp (" + results.cumIndex.ampVar + ")", 10, 290);
+        ctx.font = "bold 14px sans-serif" ;
+        ctx.fillText("Overall (" + results.cumIndex.overall + ")", 10, 330);
+
 // prepare the geometry of the heat map area.
-	let left = 150;  // start of the heat map area
-	let rightEdge = chartTop.width - 10; // right limit of the heat map area that can be used 
-	let dataLen = results.inspirations.length; // one many inspirations need to be summarized
-	
-	let perCell = Math.ceil( dataLen / ( rightEdge - left ) );  // number of inspiration per "cell" / pixel
-	let noCells = Math.round(dataLen / perCell); // number of "cells" / pixels
-	let right = left + noCells;  // actual right limit that will be used 
-	
-	// output the hours at the top of the canvas.
-	let sampleCnt = results.inspirations[results.inspirations.length-1].end;
-	outputHoursText(ctx, startDateTime, sampleCnt, 20, left, right);
-	
-	let ptr = perCell;
-	let nextCell = {skew:0, flatTop:0, topHeavy:0, spike:0, multiPeak:0, noPause:0, inspirRate:0, multiBreath:0, ampVar:0, overall:0};
-	let cellCnt = 0;
-	for(let i = 0; i < results.inspirations.length ; i++){
-		// add each inspiration's data to the cell
-		if (results.inspirations[i].indices.skew === true){
-			nextCell.skew++;
-		}
-		if (results.inspirations[i].indices.flatTop === true){
-			nextCell.flatTop++;
-		}
-		if (results.inspirations[i].indices.topHeavy === true){
-			nextCell.topHeavy++;
-		}
-		if (results.inspirations[i].indices.spike === true){
-			nextCell.spike++;
-		}
-		if (results.inspirations[i].indices.multiPeak === true){
-			nextCell.multiPeak++;
-		}
-		if (results.inspirations[i].indices.noPause === true){
-			nextCell.noPause++;
-		}
-		if (results.inspirations[i].indices.inspirRate === true){
-			nextCell.inspirRate++;
-		}
-		if (results.inspirations[i].indices.multiBreath === true){
-			nextCell.multiBreath++;
-		}
-		if (results.inspirations[i].indices.ampVar === true){
-			nextCell.ampVar++;
-		}
-		if (results.inspirations[i].indices.overall > 0){
-			nextCell.overall += results.inspirations[i].indices.overall;
-		}
-		ptr--;
-		
-		if (ptr ===0){
-			// once the cell data is complete, generate the averages
-			nextCell.skew = nextCell.skew / perCell;
-			nextCell.flatTop = nextCell.flatTop / perCell;
-			nextCell.topHeavy = nextCell.topHeavy / perCell;
-			nextCell.spike = nextCell.spike / perCell;
-			nextCell.multiPeak = nextCell.multiPeak / perCell;
-			nextCell.noPause = nextCell.noPause / perCell;
-			nextCell.inspirRate = nextCell.inspirRate / perCell;
-			nextCell.multiBreath = nextCell.multiBreath / perCell;
-			nextCell.ampVar = nextCell.ampVar / perCell;
-			nextCell.overall = nextCell.overall / perCell;
-			
-			// display the cell's data on the canvas
-			outputIndicesLine(ctx, nextCell, left + cellCnt);
-			cellCnt++;
-			
-			// reset the cell data and move onto the next cell
-			nextCell = {skew:0, flatTop:0, topHeavy:0, spike:0, multiPeak:0, noPause:0, inspirRate:0, multiBreath:0, ampVar:0, overall:0};
-			ptr = perCell;
-		}
-	}
+        const left = 150;  // start of the heat map area
+        const rightEdge = canvas.width - 10; // right limit of the heat map area that can be used
+        const dataLen = results.inspirations.length; // how many inspirations need to be summarized
 
-	// output the flow balance anomalys
+        if (dataLen === 0){
+                canvas.onclick = null;
+                return;
+        }
+
+        const availableWidth = Math.max(rightEdge - left, 1);
+        const perCell = Math.max(Math.ceil(dataLen / availableWidth), 1);  // number of inspiration per "cell" / pixel
+        const noCells = Math.max(Math.round(dataLen / perCell), 1); // number of "cells" / pixels
+        const right = left + noCells;  // actual right limit that will be used
+
+        // output the hours at the top of the canvas.
+        const sampleCnt = results.inspirations[dataLen-1].end;
+        outputHoursText(ctx, startDateTime, sampleCnt, 20, left, right);
+
+        let ptr = perCell;
+        let nextCell = {skew:0, flatTop:0, topHeavy:0, spike:0, multiPeak:0, noPause:0, inspirRate:0, multiBreath:0, ampVar:0, overall:0};
+        let cellCnt = 0;
+        for(let i = 0; i < dataLen ; i++){
+                // add each inspiration's data to the cell
+                if (results.inspirations[i].indices.skew === true){
+                        nextCell.skew++;
+                }
+                if (results.inspirations[i].indices.flatTop === true){
+                        nextCell.flatTop++;
+                }
+                if (results.inspirations[i].indices.topHeavy === true){
+                        nextCell.topHeavy++;
+                }
+                if (results.inspirations[i].indices.spike === true){
+                        nextCell.spike++;
+                }
+                if (results.inspirations[i].indices.multiPeak === true){
+                        nextCell.multiPeak++;
+                }
+                if (results.inspirations[i].indices.noPause === true){
+                        nextCell.noPause++;
+                }
+                if (results.inspirations[i].indices.inspirRate === true){
+                        nextCell.inspirRate++;
+                }
+                if (results.inspirations[i].indices.multiBreath === true){
+                        nextCell.multiBreath++;
+                }
+                if (results.inspirations[i].indices.ampVar === true){
+                        nextCell.ampVar++;
+                }
+                if (results.inspirations[i].indices.overall > 0){
+                        nextCell.overall += results.inspirations[i].indices.overall;
+                }
+                ptr--;
+
+                if (ptr ===0){
+                        // once the cell data is complete, generate the averages
+                        nextCell.skew = nextCell.skew / perCell;
+                        nextCell.flatTop = nextCell.flatTop / perCell;
+                        nextCell.topHeavy = nextCell.topHeavy / perCell;
+                        nextCell.spike = nextCell.spike / perCell;
+                        nextCell.multiPeak = nextCell.multiPeak / perCell;
+                        nextCell.noPause = nextCell.noPause / perCell;
+                        nextCell.inspirRate = nextCell.inspirRate / perCell;
+                        nextCell.multiBreath = nextCell.multiBreath / perCell;
+                        nextCell.ampVar = nextCell.ampVar / perCell;
+                        nextCell.overall = nextCell.overall / perCell;
+
+                        // display the cell's data on the canvas
+                        outputIndicesLine(ctx, nextCell, left + cellCnt);
+                        cellCnt++;
+
+                        // reset the cell data and move onto the next cell
+                        nextCell = {skew:0, flatTop:0, topHeavy:0, spike:0, multiPeak:0, noPause:0, inspirRate:0, multiBreath:0, ampVar:0, overall:0};
+                        ptr = perCell;
+                }
+        }
+
+        // output the flow balance anomalys
         outputFlowAnomaly(ctx, left, perCell, 310, results.flowImbalance);
-	
-	var elemLeft = chartTop.offsetLeft + chartTop.clientLeft;
-	var elemTop = chartTop.offsetTop + chartTop.clientTop;
 
-	if (chartDetail!=null){
-//when displaying the top canvas, clear the lower graph area (and scroll buttons)
-		clearDetailGraph();
-	}
-	
-	//Add event listener for `click` events.
-        chartTop.onclick = function(event) {
-            var x = event.pageX - elemLeft;  //      y = event.pageY - elemTop;
+        if (chartDetail!=null){
+//when displaying the canvas, clear the lower graph area (and scroll buttons)
+                clearDetailGraph();
+        }
+
+        //Add event listener for `click` events.
+        canvas.onclick = function(event) {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
                 if (x < left || x > right){
                         // only process clicks within the coloured "cell" area
                         return;
                 }
 
-                // determine how far left/right was clicked and display the flow graph of the appropraite time
-            var instanceIndex = Math.trunc( ( (x - left) / noCells ) * results.inspirations.length);
+                // determine how far left/right was clicked and display the flow graph of the appropriate time
+            let instanceIndex = Math.trunc( ( (x - left) / noCells ) * dataLen);
+            if (instanceIndex < 0){
+                        instanceIndex = 0;
+                }else if(instanceIndex >= dataLen){
+                        instanceIndex = dataLen - 1;
+                }
+            if (typeof options.onSelect === 'function'){
+                        options.onSelect();
+                }
             showDetailOneMinute(dataArray, results, results.inspirations[instanceIndex].start);
         };
 
@@ -798,17 +826,21 @@ function getOverallColourFromValue(indexValue){
 }
 
 // When selected, output the detail graph for one minute of flow.  
-function showDetailOneMinute(dataArray, results, samplePos){  
-	if (chartDetail != null){
-		// clear a chart if one is already in view
-		chartDetail.destroy();
-	}
-	
-	detailSampleSelected = samplePos;
-	
+function showDetailOneMinute(dataArray, results, samplePos){
+        if (chartDetail != null){
+                // clear a chart if one is already in view
+                chartDetail.destroy();
+        }
+
+        detailSampleSelected = samplePos;
+
+        if (typeof detailContainer !== 'undefined' && detailContainer){
+                detailContainer.classList.remove('hidden');
+        }
+
 // determine which flow sample to start and end the graph with
-	let startPtr = samplePos - (DETAIL_SAMPLES_SHOW / 2);
-	let endPtr = samplePos + (DETAIL_SAMPLES_SHOW / 2);
+        let startPtr = samplePos - (DETAIL_SAMPLES_SHOW / 2);
+        let endPtr = samplePos + (DETAIL_SAMPLES_SHOW / 2);
 	if (startPtr < 0){
 		startPtr = 0;
 		endPtr = DETAIL_SAMPLES_SHOW;
@@ -864,13 +896,17 @@ function showDetailOneMinute(dataArray, results, samplePos){
 }
 
 function clearDetailGraph(){
-	// clear the detail graph
-	if (chartDetail != null){
-		chartDetail.destroy();
-	}
-	// hide the back and forward buttons
-	document.getElementById('backBtn').style.visibility = "hidden";
-	document.getElementById('fwdBtn').style.visibility = "hidden";
+        // clear the detail graph
+        if (chartDetail != null){
+                chartDetail.destroy();
+                chartDetail = null;
+        }
+        if (typeof detailContainer !== 'undefined' && detailContainer){
+                detailContainer.classList.add('hidden');
+        }
+        // hide the back and forward buttons
+        document.getElementById('backBtn').style.visibility = "hidden";
+        document.getElementById('fwdBtn').style.visibility = "hidden";
 }
 
 const DETAIL_SAMPLES_MOVE = 1125;
