@@ -10,6 +10,104 @@
 <script src="EDFFile.js"></script>
 <script src="FlowLimits.js"></script>
 
+<style>
+        body {
+                font-family: sans-serif;
+        }
+
+        #sessionControls {
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 16px;
+                margin-top: 8px;
+                margin-bottom: 8px;
+        }
+
+        #sessionControls label {
+                font-weight: 600;
+        }
+
+        #sessionControls select {
+                min-width: 220px;
+        }
+
+        #sessionControls .compare-toggle {
+                font-weight: normal;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+        }
+
+        #comparisonControls {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                margin-left: 40px;
+                margin-bottom: 16px;
+        }
+
+        #compareOptions {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 12px;
+        }
+
+        #compareOptions label {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+        }
+
+        #singleOverviewWrapper,
+        .overview-grid {
+                margin-top: 16px;
+        }
+
+        .overview-grid {
+                display: grid;
+                gap: 16px;
+                grid-template-columns: 1fr;
+        }
+
+        .overview-item {
+                padding: 8px;
+                border: 1px solid #d5d5d5;
+                border-radius: 4px;
+                background-color: #ffffff;
+        }
+
+        .overview-item.active-session {
+                border-color: #1b1e7a;
+                box-shadow: 0 0 0 2px rgba(27, 30, 122, 0.2);
+        }
+
+        .overview-canvas {
+                width: 100%;
+                height: 350px;
+                display: block;
+        }
+
+        .detail-container {
+                margin-top: 24px;
+                height: 300px;
+        }
+
+        .detail-container canvas {
+                height: 100%;
+        }
+
+        .hidden {
+                display: none !important;
+        }
+
+        @media (min-width: 900px) {
+                .overview-grid {
+                        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+                }
+        }
+</style>
+
 </head>
 <body style="font-family: sans-serif">
 	<div>
@@ -18,13 +116,24 @@
 		<span style="padding-left:100px;">(See <a href="Intro.html">introduction</a>)</span>
 	</div>
         <p>Select folder or files containing Resmed "*DATE*_*TIME*_BRP.edf": <input type="file" name="inputfile" id="fileInput" multiple webkitdirectory directory style="padding-left:40px;"></p>
-        <p>Sessions:<select id="sessionSelect" style="margin-left:40px;"></select></p>
-	<div>
-  		<canvas id="chartTop"></canvas>
-	</div>
-	<div>
-		<canvas id="chartDetail" style="height: 300px;"></canvas>
-	</div>
+        <div id="sessionControls">
+                <label for="sessionSelect">Sessions:</label>
+                <select id="sessionSelect"></select>
+                <label class="compare-toggle"><input type="checkbox" id="compareToggle" disabled>Compare sessions</label>
+        </div>
+        <div id="comparisonControls" class="hidden">
+                <span>Select sessions to compare:</span>
+                <div id="compareOptions"></div>
+        </div>
+        <div id="overviewSection">
+                <div id="singleOverviewWrapper">
+                        <canvas id="chartTop" class="overview-canvas"></canvas>
+                </div>
+                <div id="comparisonOverviewContainer" class="overview-grid hidden"></div>
+        </div>
+        <div id="detailContainer" class="detail-container hidden">
+                <canvas id="chartDetail" height="300"></canvas>
+        </div>
 	<div style="margin:auto;width:250px;">
 		<button id="backBtn" style="visibility: hidden;">&lt;&lt;Back</button>
 		<button id="fwdBtn" style="visibility: hidden;">Fwd&gt;&gt;</button>
@@ -33,7 +142,7 @@
 	
 <script type="text/javascript">
 
-let chartTop = null;
+const chartTopCanvas = document.getElementById('chartTop');
 let chartDetail = null;
 
 let detailSampleSelected = 0;
@@ -42,6 +151,15 @@ const sessions = [];
 let activeSessionIndex = -1;
 const sessionSelect = document.getElementById('sessionSelect');
 sessionSelect.disabled = true;
+
+const compareToggle = document.getElementById('compareToggle');
+const comparisonControls = document.getElementById('comparisonControls');
+const compareOptionsContainer = document.getElementById('compareOptions');
+const comparisonOverviewContainer = document.getElementById('comparisonOverviewContainer');
+const singleOverviewWrapper = document.getElementById('singleOverviewWrapper');
+const detailContainer = document.getElementById('detailContainer');
+const compareSelectedSessions = new Set();
+let compareModeEnabled = false;
 
 document.getElementById('backBtn').addEventListener('click', function () {
         const session = getActiveSession();
@@ -64,6 +182,11 @@ sessionSelect.addEventListener('change', function (event) {
                 return;
         }
         setActiveSession(index);
+});
+
+compareToggle.addEventListener('change', function (event) {
+        compareModeEnabled = event.target.checked;
+        updateCompareModeUI();
 });
 
 document.getElementById('fileInput').addEventListener('change', async function (event) {
@@ -117,6 +240,12 @@ function handleSessionCreated(session){
         option.text = session.startDateTime.toLocaleString();
         sessionSelect.appendChild(option);
         sessionSelect.disabled = false;
+        compareToggle.disabled = sessions.length < 2;
+
+        addComparisonOption(sessionIndex, session);
+        if (compareModeEnabled){
+                refreshComparisonOverview();
+        }
 }
 
 function setActiveSession(index){
@@ -128,6 +257,10 @@ function setActiveSession(index){
         detailSampleSelected = 0;
         clearDetailGraph();
         displayHeatMap(sessions[index]);
+        if (compareModeEnabled){
+                ensureActiveSessionInComparison();
+        }
+        refreshComparisonOverview();
 }
 
 function getActiveSession(){
@@ -144,10 +277,110 @@ function resetSessions(){
         sessionSelect.innerHTML = "";
         sessionSelect.disabled = true;
         sessionSelect.value = "";
+        compareSelectedSessions.clear();
+        compareToggle.checked = false;
+        compareToggle.disabled = true;
+        compareModeEnabled = false;
+        comparisonControls.classList.add('hidden');
+        compareOptionsContainer.innerHTML = "";
+        comparisonOverviewContainer.innerHTML = "";
+        comparisonOverviewContainer.classList.add('hidden');
+        singleOverviewWrapper.classList.remove('hidden');
         clearDetailGraph();
-        const topCanvas = document.getElementById('chartTop');
-        const ctx = topCanvas.getContext('2d');
-        ctx.clearRect(0, 0, topCanvas.width, topCanvas.height);
+        chartTopCanvas.onclick = null;
+        const ctx = chartTopCanvas.getContext('2d');
+        ctx.clearRect(0, 0, chartTopCanvas.width, chartTopCanvas.height);
+}
+
+function addComparisonOption(sessionIndex, session){
+        const label = document.createElement('label');
+        label.className = 'compare-option';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = String(sessionIndex);
+        checkbox.addEventListener('change', function (event) {
+                const idx = parseInt(event.target.value, 10);
+                if (event.target.checked){
+                        compareSelectedSessions.add(idx);
+                }else{
+                        compareSelectedSessions.delete(idx);
+                }
+                syncCompareSelectionUI();
+                refreshComparisonOverview();
+        });
+        const textSpan = document.createElement('span');
+        textSpan.textContent = session.startDateTime.toLocaleString();
+        label.appendChild(checkbox);
+        label.appendChild(textSpan);
+        compareOptionsContainer.appendChild(label);
+        syncCompareSelectionUI();
+}
+
+function syncCompareSelectionUI(){
+        const checkboxes = compareOptionsContainer.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach((checkbox) => {
+                const idx = parseInt(checkbox.value, 10);
+                checkbox.checked = compareSelectedSessions.has(idx);
+        });
+}
+
+function ensureActiveSessionInComparison(){
+        if (!compareModeEnabled || activeSessionIndex < 0){
+                return;
+        }
+        if (!compareSelectedSessions.has(activeSessionIndex)){
+                compareSelectedSessions.add(activeSessionIndex);
+                syncCompareSelectionUI();
+        }
+}
+
+function refreshComparisonOverview(){
+        comparisonOverviewContainer.innerHTML = '';
+        if (!compareModeEnabled){
+                comparisonOverviewContainer.classList.add('hidden');
+                return;
+        }
+        syncCompareSelectionUI();
+        const selectedIndices = Array.from(compareSelectedSessions).filter((idx) => idx >= 0 && idx < sessions.length);
+        if (selectedIndices.length === 0){
+                comparisonOverviewContainer.classList.add('hidden');
+                return;
+        }
+        selectedIndices.sort((a, b) => a - b);
+        comparisonOverviewContainer.classList.remove('hidden');
+        selectedIndices.forEach((idx) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'overview-item';
+                if (idx === activeSessionIndex){
+                        wrapper.classList.add('active-session');
+                }
+                const canvas = document.createElement('canvas');
+                canvas.className = 'overview-canvas';
+                wrapper.appendChild(canvas);
+                comparisonOverviewContainer.appendChild(wrapper);
+                renderSessionOverview(canvas, sessions[idx], {
+                        onSelect: () => {
+                                if (idx !== activeSessionIndex){
+                                        setActiveSession(idx);
+                                }
+                        },
+                });
+        });
+}
+
+function updateCompareModeUI(){
+        if (compareModeEnabled){
+                comparisonControls.classList.remove('hidden');
+                singleOverviewWrapper.classList.add('hidden');
+                ensureActiveSessionInComparison();
+                refreshComparisonOverview();
+                clearDetailGraph();
+        }else{
+                comparisonControls.classList.add('hidden');
+                comparisonOverviewContainer.innerHTML = '';
+                comparisonOverviewContainer.classList.add('hidden');
+                singleOverviewWrapper.classList.remove('hidden');
+        }
 }
 </script>
 
